@@ -59,7 +59,7 @@ android {
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
         implementation files('libs/fastjson-1.1.46.android.jar')
-        implementation 'com.yofolive.xmnui:nuisdk:1.0.0'
+        implementation 'com.yofo.xmai:nuisdk:1.0.1'
         // implementation 'com.yofolive.xm.third-party:nuisdk:0.0.1-RELEASE'
         // implementation 'com.ali:nuisdk:1.0.0'
 
