@@ -482,7 +482,7 @@ static FlutterAliyunNui *myself = nil;
 
 - (void)onStreamInputTtsDataCallback:(char*)buffer len:(int)len {
     NSString *log = [NSString stringWithFormat:@"\n音频回调 %d bytes", len];
-    TLog(@"%@", log);
+    // TLog(@"%@", log);
     if (buffer != NULL && len > 0 && _audioController != nil) {
         [_audioController write:(char*)buffer Length:(unsigned int)len];
     }
