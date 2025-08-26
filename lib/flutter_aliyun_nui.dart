@@ -103,7 +103,11 @@ class ALNui {
     if (!ttsOnReady) {
       debugPrint('NBSDK ======>send fialed, tts not ready');
       return;
+    } else if (text.isEmpty) {
+      debugPrint('NBSDK ======>send fialed, text is null');
+      return;
     }
+
     await _channel.invoke('sendStreamInputTts', {'text': text});
   }
 
