@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:audio_wave/audio_wave.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_aliyun_nui/flutter_aliyun_nui.dart';
 import 'dart:async';
@@ -15,10 +16,19 @@ class VoiceRecognitionPage extends StatefulWidget {
 
 class _VoiceRecognitionPageState extends State<VoiceRecognitionPage> {
   String _recognizedText = '';
-  List<double> amplitudes = List.generate(32, (_) => 40);
+  int _waveCount = 44;
+  double _minDecay = 0.4;
+  bool _stopped = true;
+  List<double> _amplitudes = [];
+  final GlobalKey _btnKey = GlobalKey();
+  bool _willCancel = false;
   @override
   void initState() {
     super.initState();
+    _amplitudes = List.filled(_waveCount, _minDecay);
+    ALNui.setSlog((x) {
+      debugPrint(x);
+    });
   }
 
   Future<void> _initRecognize() async {
@@ -43,33 +53,15 @@ class _VoiceRecognitionPageState extends State<VoiceRecognitionPage> {
       },
       errorHandler: (error) {
         debugPrint(error.errorMessage);
+        _rmsChanged();
       },
-      rmsChangedHandler: (rms) {
-        var r = rms + 160;
-        if (r < 100) {
-          r = 40;
-          amplitudes = List.generate(32, (_) => 40);
-          setState(() {});
-        } else {
-          final random = Random();
-          for (int i = 0; i < amplitudes.length; i++) {
-            amplitudes[i] = (40 + random.nextInt(20)).toDouble();
-            amplitudes[i + 1] = (40 + random.nextInt(20)).toDouble();
-            amplitudes[i + 2] = (40 + random.nextInt(80)).toDouble();
-            amplitudes[i + 3] = (40 + random.nextInt(80)).toDouble();
-            amplitudes[i + 4] = (40 + random.nextInt(80)).toDouble();
-            amplitudes[i + 5] = (40 + random.nextInt(20)).toDouble();
-            i += 5;
-          }
-
-          setState(() {});
-        }
-      },
+      rmsChangedHandler: _rmsOnChange,
     );
   }
 
   Future<void> _startRecognition() async {
     setState(() {
+      _stopped = false;
       _recognizedText = '';
     });
     await ALNui.startRecognize(AliyunConfig.token);
@@ -77,6 +69,8 @@ class _VoiceRecognitionPageState extends State<VoiceRecognitionPage> {
 
   Future<void> _stopRecognition() async {
     await ALNui.stopRecognize();
+    _willCancel = false;
+    _rmsChanged();
   }
 
   Future<void> _startStreamInputTts() async {
@@ -141,8 +135,6 @@ class _VoiceRecognitionPageState extends State<VoiceRecognitionPage> {
         child: Column(
           children: [
             const SizedBox(height: 200),
-            VoiceWave(amplitudes: amplitudes),
-            const SizedBox(height: 40),
             Text(_recognizedText, style: const TextStyle(color: Colors.red)),
             ElevatedButton(onPressed: _initRecognize, child: const Text('Init')),
             ElevatedButton(onPressed: _startRecognition, child: const Text('Start')),
@@ -151,35 +143,117 @@ class _VoiceRecognitionPageState extends State<VoiceRecognitionPage> {
             ElevatedButton(onPressed: _sendStreamInputTts, child: const Text('sendTts')),
             ElevatedButton(onPressed: _stopStreamInputTts, child: const Text('stopTts')),
             ElevatedButton(onPressed: _cancelStreamInputTts, child: const Text('cancelTts')),
+            const SizedBox(height: 40),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Text(
+                _willCancel ? '松手取消' : '松手发送,上移取消',
+                style: TextStyle(color: _willCancel ? Colors.red : Colors.grey),
+              ),
+            ),
+            Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanDown: (details) async {
+                    if (!ALNui.recognizeOnReady) {
+                      await _initRecognize();
+                    }
+                    await _startRecognition();
+                  },
+                  onPanUpdate: (details) {
+                    // 判断手指是否滑出按钮上方
+                    RenderBox? box = _btnKey.currentContext?.findRenderObject() as RenderBox?;
+                    if (box != null) {
+                      Offset topLeft = box.localToGlobal(Offset.zero);
+                      Size size = box.size;
+                      Rect btnRect = topLeft & size;
+                      if (!btnRect.contains(details.globalPosition)) {
+                        // 手指已滑出按钮区域
+                        _willCancel = true;
+                        // 你可以 setState 显示“松手取消”提示
+                      } else {
+                        _willCancel = false;
+                        // 你可以 setState 显示“松手发送”提示
+                      }
+                    }
+                  },
+                  onPanEnd: (details) {
+                    _stopRecognition();
+                  },
+                  onPanCancel: () {
+                    _stopRecognition();
+                  },
+                  child: Container(
+                    key: _btnKey,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: const Color(0xff3D57F8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: _stopped
+                        ? const Center(
+                            child: Text(
+                              '长按说话',
+                              style: TextStyle(
+                                  color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                            ),
+                          )
+                        : VoiceWave(
+                            amplitudes: _amplitudes,
+                            backgroundColor: _willCancel ? Colors.red : const Color(0xff3D57F8),
+                          ),
+                  ),
+                )),
           ],
         ),
       ),
     );
   }
+
+  void _rmsChanged() {
+    setState(() {
+      _stopped = true;
+      _amplitudes = List.filled(_waveCount, _minDecay);
+    });
+  }
+
+  void _rmsOnChange(double rms) {
+    var showRms = rms + 160;
+    if (showRms < 110) {
+      setState(() {
+        _amplitudes = List.filled(_waveCount, _minDecay);
+      });
+      return;
+    }
+    setState(() {
+      _amplitudes = VoiceWave.generateAmplitudes(rms, _waveCount);
+      _stopped = false; // 新增字段
+    });
+  }
 }
 
 class VoiceWave extends StatelessWidget {
-  final double waveWidth; // 单个音浪宽度
-  final double waveHeight; // 音浪最大高度
-  final double spacing; // 音浪间距
-  final Color waveColor; // 音浪颜色
-  final Color backgroundColor; // 背景色
-  final Size backgroundSize; // 背景尺寸
-  final EdgeInsets padding; // 内边距
-  final List<double> amplitudes; // 振幅数据(0-1)
-  final double maxAmplitude = 120.0;
+  final List<double> amplitudes;
+  final double waveWidth;
+  final double waveHeight;
+  final double spacing;
+  final Color waveColor;
+  final Color backgroundColor;
+  final Size backgroundSize;
+  final EdgeInsets padding;
 
   const VoiceWave({
-    Key? key,
-    this.waveWidth = 3.0,
-    this.waveHeight = 30.0,
-    this.spacing = 2.0,
-    this.waveColor = Colors.green,
-    this.backgroundColor = Colors.red,
-    this.backgroundSize = const Size(300, 60),
-    this.padding = EdgeInsets.zero,
+    super.key,
     required this.amplitudes,
-  }) : super(key: key);
+    this.waveWidth = 3.0,
+    this.waveHeight = 20.0,
+    this.spacing = 2.0,
+    this.waveColor = Colors.white,
+    this.backgroundColor = const Color(0xff3D57F8),
+    this.backgroundSize = const Size(double.infinity, double.infinity),
+    this.padding = EdgeInsets.zero,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -187,83 +261,76 @@ class VoiceWave extends StatelessWidget {
       width: backgroundSize.width,
       height: backgroundSize.height,
       padding: padding,
-      color: backgroundColor,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          waveItem(amplitudes),
-        ],
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: List.generate(amplitudes.length, (index) {
+            var h = amplitudes[index] * waveHeight.clamp(7.0, waveHeight);
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              margin: EdgeInsets.symmetric(horizontal: spacing / 2),
+              width: waveWidth,
+              height: h,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: waveColor,
+                borderRadius: BorderRadius.circular(waveWidth / 2),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
 
-  waveItem(List<double> rms) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: rms.map((amplitude) {
-        double l = amplitude > maxAmplitude ? maxAmplitude : amplitude;
-        return AnimatedContainer(
-          duration: Duration(milliseconds: 200),
-          child: Container(
-            margin: EdgeInsets.symmetric(horizontal: spacing / 2),
-            width: waveWidth,
-            height: l / maxAmplitude * waveHeight,
-            decoration: BoxDecoration(
-              color: waveColor,
-              borderRadius: BorderRadius.circular(waveWidth / 2),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
+  static List<double> generateAmplitudes(double rms, int waveCount) {
+    double norm = ((rms + 160) / 160).clamp(0.0, 1.0);
+    final random = Random();
 
-class _WavePainter extends CustomPainter {
-  final List<double> rmss;
-  final double minRms;
-  final double maxRms;
-  final Color color;
-  final double barWidth;
-  final double barSpace;
-
-  _WavePainter(
-    this.rmss,
-    this.minRms,
-    this.maxRms, {
-    this.color = Colors.blueAccent,
-    double? barWidth,
-    double? barSpace,
-  })  : barWidth = barWidth ?? 4,
-        barSpace = barSpace ?? 1;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final totalWidth = rmss.length * barWidth + (rmss.length - 1) * barSpace;
-    final startX = (size.width - totalWidth) / 2; // 左右居中
-
-    final centerY = size.height / 2;
-
-    for (int i = 0; i < rmss.length; i++) {
-      final barHeight = rmss[i] * (64 / 90);
-      // 让每个bar以画布中心为中轴，上下剧中
-      final top = centerY - barHeight / 2;
-      final bottom = centerY + barHeight / 2;
-      final left = startX + i * (barWidth + barSpace);
-      final rect = Rect.fromLTRB(left, top, left + barWidth, bottom);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(barWidth / 2)),
-        paint,
-      );
+    // 1. 构造每段长度
+    List<int> segLens = List.generate(11, (i) => i % 2 == 0 ? 3 : 5);
+    // 2. 修正最后一段长度，保证总数等于_waveCount
+    int total = segLens.reduce((a, b) => a + b);
+    if (total != waveCount) {
+      segLens[10] += (waveCount - total);
     }
-  }
+    // 3. 计算每段起始下标
+    List<int> segStartIdx = [];
+    int acc = 0;
+    for (int len in segLens) {
+      segStartIdx.add(acc);
+      acc += len;
+    }
 
-  @override
-  bool shouldRepaint(covariant _WavePainter oldDelegate) =>
-      oldDelegate.rmss != rmss || oldDelegate.color != color || oldDelegate.barWidth != barWidth || oldDelegate.barSpace != barSpace;
+    return List.generate(waveCount, (i) {
+      // 找到当前i属于哪个段
+      int seg = 0;
+      for (int s = 0; s < segStartIdx.length; s++) {
+        int start = segStartIdx[s];
+        int end = start + segLens[s] - 1;
+        if (i >= start && i <= end) {
+          seg = s;
+          break;
+        }
+      }
+      double decay = 1.0;
+      if (seg % 2 == 1) {
+        // 奇数段做中间高两边低
+        int start = segStartIdx[seg];
+        int end = start + segLens[seg] - 1;
+        int center = (start + end) ~/ 2;
+        double dist = (i - center).abs() / ((end - start) / 2);
+        decay = 1 - dist * 0.25; // 0.75~1.0
+      }
+      double coef = (seg % 2 == 0) ? 0.4 : decay;
+
+      var h = (norm * 1.2 + random.nextDouble() * 0.8) * coef;
+      return h;
+    });
+  }
 }

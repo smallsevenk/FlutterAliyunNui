@@ -14,7 +14,7 @@ A new Flutter plugin project.
   s.source           = { :path => '.' }
   s.platform = :ios, '12.0'
   s.dependency 'Flutter'
-  s.dependency 'AliyunIOSNuiSDK'
+  s.dependency 'AliyunIOSNuiSDK', '0.0.2'
   s.source_files = 'Classes/**/*'
   s.pod_target_xcconfig = { 
     'DEFINES_MODULE' => 'YES',

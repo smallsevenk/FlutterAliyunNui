@@ -1,12 +1,21 @@
 allprojects {
     repositories {
+        // maven {
+        //     url = 'http://nexus.test.yofolive.com/repository/xm-release/'
+        //     allowInsecureProtocol = true
+
+        //     credentials {
+        //         username 'xm-deploy'                    // 账号
+        //         password 'MdL3GLf6wp8wzW5AAwSm'         // 密码
+        //     }
+        // }
         maven {
-            url = 'http://nexus.test.yofolive.com/repository/xm-release/'
+            url = 'http://nexus.test.sharexm.cn/repository/xmai/'
             allowInsecureProtocol = true
 
             credentials {
-                username 'xm-deploy'                    // 账号
-                password 'MdL3GLf6wp8wzW5AAwSm'         // 密码
+                username 'xmai'                    // 账号
+                password 'C9beGFAFOxNnQQIo'         // 密码
             }
         }
         google()

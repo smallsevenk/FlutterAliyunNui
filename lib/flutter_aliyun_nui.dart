@@ -77,7 +77,7 @@ class ALNui {
 
   static Future<void> initRecognize(NuiConfig config) async {
     var initResult = await _channel.invoke('initRecognize', config.toRecognizeJson());
-    recognizeOnReady = initResult == '0';
+    recognizeOnReady = [0, 240012].contains(initResult); // 0 表示成功，240012 表示已初始化
     slog?.call('NBSDK ======> initRecognize initResult:$initResult, is $recognizeOnReady');
   }
 
@@ -93,6 +93,7 @@ class ALNui {
     try {
       var ret = await _channel.invoke('startStreamInputTts', config.toStreamTtsJson());
       ttsOnReady = ret == 0;
+      log('startStreamInputTts is $ttsOnReady');
     } catch (e) {
       log('startStreamInputTts', e);
     }
@@ -100,15 +101,19 @@ class ALNui {
 
   static Future<void> sendStreamInputTts(String text) async {
     if (!ttsOnReady) {
-      debugPrint('NBSDK ======> tts not ready');
+      debugPrint('NBSDK ======>send fialed, tts not ready');
+      return;
+    } else if (text.isEmpty) {
+      debugPrint('NBSDK ======>send fialed, text is null');
       return;
     }
+
     await _channel.invoke('sendStreamInputTts', {'text': text});
   }
 
   static Future<void> stopStreamInputTts() async {
     if (!ttsOnReady) {
-      debugPrint('NBSDK ======> tts not ready');
+      debugPrint('NBSDK ======>stop failed, tts not ready');
       return;
     }
     await _channel.invoke('stopStreamInputTts');

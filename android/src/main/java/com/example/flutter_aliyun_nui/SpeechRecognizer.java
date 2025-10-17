@@ -109,12 +109,11 @@ public class SpeechRecognizer implements INativeNuiCallback {
         Log.i(TAG, "NUI init result = " + ret);
         if (ret == Constants.NuiResultCode.SUCCESS) {
             mInit = true;
-            result.success("0");
             Log.i(TAG, "NUI init success");
         } else {
             Log.e(TAG, "NUI init failed: " + ret);
-            result.success("-1");
         }
+        result.success(ret);
     }
 
     /**

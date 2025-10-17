@@ -17,7 +17,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  audio_wave: ^0.1.5
   flutter_aliyun_nui:
     path: ../
 
