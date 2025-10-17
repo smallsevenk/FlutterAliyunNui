@@ -356,7 +356,7 @@ public class SpeechRecognizer implements INativeNuiCallback {
 
     @Override
     public void onNuiAudioRMSChanged(float val) {
-        // 可选：音量变化回调
+        mainHandler.post(() -> channel.invokeMethod("onRmsChanged", val));
     }
 
     @Override
