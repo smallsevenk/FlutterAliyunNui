@@ -15,13 +15,18 @@ class ALNui {
   static bool recognizeOnReady = false;
   static bool ttsOnReady = false;
   static Function(String text)? slog;
+  static bool showPrint = false;
 
   static void setSlog(Function(String text) slongFunction) {
     slog = slongFunction;
   }
 
+  static void setShowPrint(bool show) {
+    showPrint = show;
+  }
+
   static void log(String method, [dynamic args]) {
-    debugPrint('NBSDK ======> $method:${args.toString()}');
+    dp('NBSDK ======> $method:${args.toString()}');
     slog?.call('NBSDK ======> $method:${args.toString()}}');
   }
 
@@ -42,7 +47,7 @@ class ALNui {
             log('onRecognizeResult', call.arguments);
 
             if (!recognizeOnReady) {
-              debugPrint('NBSDK ======> recognize not ready');
+              dp('NBSDK ======> recognize not ready');
               return;
             }
             recognizeResultHandler?.call((NuiRecognizeResult.fromMap(call.arguments)));
@@ -101,10 +106,10 @@ class ALNui {
 
   static Future<void> sendStreamInputTts(String text) async {
     if (!ttsOnReady) {
-      debugPrint('NBSDK ======>send fialed, tts not ready');
+      dp('NBSDK ======>send fialed, tts not ready');
       return;
     } else if (text.isEmpty) {
-      debugPrint('NBSDK ======>send fialed, text is null');
+      dp('NBSDK ======>send fialed, text is null');
       return;
     }
 
@@ -113,7 +118,7 @@ class ALNui {
 
   static Future<void> stopStreamInputTts() async {
     if (!ttsOnReady) {
-      debugPrint('NBSDK ======>stop failed, tts not ready');
+      dp('NBSDK ======>stop failed, tts not ready');
       return;
     }
     await _channel.invoke('stopStreamInputTts');
@@ -147,5 +152,11 @@ class ALNui {
     if (!Platform.isIOS) return false;
     // iOS 模拟器的设备型号一般以 "x86_64" 或 "arm64" 开头
     return !Platform.isMacOS && (Platform.environment['SIMULATOR_DEVICE_NAME'] != null);
+  }
+
+  static dp(String message) {
+    if (showPrint) {
+      debugPrint(message);
+    }
   }
 }
