@@ -64,6 +64,12 @@ typedef enum AudioControlType AudioControlType;
 /// 播放数据回调
 -(void) playData:(unsigned char*)buffer Length:(int)len;
 
+/**
+ * @discuss 音频控制器错误回调
+ * @param error 错误信息
+ */
+-(void) onError:(NSError*)error;
+
 @end
 
 /**

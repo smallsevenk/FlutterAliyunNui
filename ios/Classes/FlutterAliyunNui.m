@@ -313,6 +313,11 @@ static FlutterAliyunNui *myself = nil;
 }
  
 
+- (void)onError:(NSError *)error {
+    [_channel invokeMethod:@"onError" arguments:@{@"errorCode": -1001, @"errorMessage": errorDetail ?: @""}];
+}
+
+
 #pragma mark - Nui Listener
 -(void)onNuiEventCallback:(NuiCallbackEvent)nuiEvent
                    dialog:(long)dialog

@@ -66,12 +66,15 @@ class ALNui {
             // 240068 token 无效/过期 清空 token 重新启动
             if (error.errorCode == 240068) {
               recognizeOnReady = false;
+            } else if (error.errorCode == -1001) {
+              // -1001 音频错误，停止 TTS 状态
+              ttsOnReady = false;
             }
-
             errorHandler?.call(error);
             break;
           case 'onToast':
             log('onToast', call.arguments);
+            toastHandler?.call(call.arguments);
             break;
         }
       } catch (e) {

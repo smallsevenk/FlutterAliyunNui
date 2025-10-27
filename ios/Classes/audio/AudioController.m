@@ -179,7 +179,28 @@ static OSStatus PlayCallback(
             if ([play->_delegate respondsToSelector:@selector(playerDrainDataFinish)]) {
                 dispatch_sync(gCallbackQueue, ^{
                     play->player_state = PLAYER_STATE_STOPPED;
-                    AudioOutputUnitStop(play->mPlayUnit);
+                    if (play->mPlayUnit != NULL) {
+                        OSStatus stopStatus = AudioOutputUnitStop(play->mPlayUnit);
+                        if (stopStatus != noErr) {
+                            // 构造 NSError 并回调 delegate
+                            NSDictionary *userInfo = @{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"AudioOutputUnitStop failed: %d", (int)stopStatus] };
+                            NSError *err = [NSError errorWithDomain:@"AudioController" code:stopStatus userInfo:userInfo];
+                            if ([play->_delegate respondsToSelector:@selector(onError:)]) {
+                                dispatch_async(gCallbackQueue, ^{
+                                    [play->_delegate onError:err];
+                                });
+                            }
+                        }
+                    } else {
+                        // mPlayUnit 为 NULL，构造错误回调但不崩溃
+                        NSDictionary *userInfo = @{ NSLocalizedDescriptionKey: @"AudioOutputUnitStop skipped: mPlayUnit is NULL" };
+                        NSError *err = [NSError errorWithDomain:@"AudioController" code:-1 userInfo:userInfo];
+                        if ([play->_delegate respondsToSelector:@selector(onError:)]) {
+                            dispatch_async(gCallbackQueue, ^{
+                                [play->_delegate onError:err];
+                            });
+                        }
+                    }
                     [play->_delegate playerDrainDataFinish];
                 });
             }
