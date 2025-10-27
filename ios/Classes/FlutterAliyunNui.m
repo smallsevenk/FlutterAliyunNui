@@ -314,7 +314,7 @@ static FlutterAliyunNui *myself = nil;
  
 
 - (void)onError:(NSError *)error {
-    [_channel invokeMethod:@"onError" arguments:@{@"errorCode": -1001, @"errorMessage": errorDetail ?: @""}];
+    [_channel invokeMethod:@"onError" arguments:@{@"errorCode": @(error.code), @"errorMessage": error.userInfo.description ?: @""}];
 }
 
 
