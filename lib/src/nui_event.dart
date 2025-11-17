@@ -6,8 +6,15 @@ class NuiRecognizeResult {
   NuiRecognizeResult({required this.result, required this.isLast});
 
   factory NuiRecognizeResult.fromMap(Map<dynamic, dynamic> map) {
+    var result = map['result'] ?? '';
+
+    String removeLastCharSafely(String? text) {
+      if (text == null || text.isEmpty || !text.endsWith('。')) return text ?? '';
+      return text.substring(0, text.length - 1);
+    }
+
     return NuiRecognizeResult(
-      result: map['result'] ?? '',
+      result: removeLastCharSafely(result),
       isLast: (map['isLast'] ?? 1) == 1,
     );
   }
