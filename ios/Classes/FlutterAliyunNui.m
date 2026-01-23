@@ -45,7 +45,7 @@ static FlutterAliyunNui *myself = nil;
         sendText = [NSMutableArray new];
         _utils = [NuiSdkUtils alloc];
         _recordedVoiceData = [NSMutableData data];
-        _audioController = [[AudioController alloc] init:all_open];
+        _audioController = [[AudioController alloc] init];
         _audioController.delegate = self;
         [_audioController setPlayerSampleRate:ttsSampleRate];
     }
@@ -58,6 +58,7 @@ static FlutterAliyunNui *myself = nil;
 
 // 语音识别 sdk 初始化
 - (NSString *)nuiSdkInit:(NSDictionary *)args {
+    [_audioController configureAudioSessionForType:only_recorder error:nil];
     if (!_nui) {
         _nui = [NeoNui get_instance];
         _nui.delegate = self;
@@ -86,11 +87,13 @@ static FlutterAliyunNui *myself = nil;
     is_stopping = NO;
     if (_audioController == nil) {
         // 注意：这里audioController模块仅用于录音示例，用户可根据业务场景自行实现这部分代码
-        _audioController = [[AudioController alloc] init:only_recorder];
+        _audioController = [[AudioController alloc] init ];
         _audioController.delegate = self;
+    
     }
 
     if (_audioController != nil) {
+        [_audioController configureAudioSessionForType:only_recorder error:nil];
         if (sr_work_queue == NULL){
             sr_work_queue = dispatch_queue_create("NuiSRController", DISPATCH_QUEUE_CONCURRENT);
         }
@@ -130,6 +133,7 @@ static FlutterAliyunNui *myself = nil;
 - (void)startStreamInputTts:(NSDictionary *)args result:(FlutterResult)result{
     @try {
         if (_audioController != nil) {
+            [_audioController configureAudioSessionForType:only_player error:nil];
             [_audioController stopPlayer];
         }
         if (sendText != nil) {

@@ -73,6 +73,10 @@ static dispatch_queue_t gFadeOutQueue;
     UInt32 cal_buffer_len;
     /// 缓冲偏移量
     UInt32 cal_buffer_offset;
+    
+    AudioControlType audioControlType;
+    BOOL hasRecorder ;
+    BOOL hasPlayer;
 }
 
 @end
@@ -204,9 +208,7 @@ static OSStatus PlayCallback(
     return 0;
 }
       
--(id)init:(AudioControlType)type {
-    NSLog(@"audiocontroller: init with type:%d(0:all_open,1:only_player,2:only_recorder)", type);
-
+-(id)init {
     self = [super init];
     if (self) {
         // 1.init AudioSession
@@ -224,20 +226,9 @@ static OSStatus PlayCallback(
         cal_buffer_offset = 0;
 
         ring_buf = [[NlsRingBuffer alloc] init:sample_rate];
+ 
 
-        AVAudioSession *audioSession = [AVAudioSession sharedInstance];
-        if (type == all_open) {
-            [audioSession setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionAllowBluetooth | AVAudioSessionCategoryOptionMixWithOthers error:nil];
-            if (error) NSLog(@"AVAudioSessionCategoryPlayAndRecord failed! error:%@", error);
-        } else if (type == only_player) {
-            [audioSession setCategory:AVAudioSessionCategoryPlayback withOptions: AVAudioSessionCategoryOptionAllowBluetooth | AVAudioSessionCategoryOptionMixWithOthers error:nil];
-            if (error) NSLog(@"AVAudioSessionCategoryPlayback failed! error:%@", error);
-        } else if (type == only_recorder) {
-            [audioSession setCategory:AVAudioSessionCategoryRecord withOptions:AVAudioSessionCategoryOptionAllowBluetooth | AVAudioSessionCategoryOptionMixWithOthers error:nil];
-            if (error) NSLog(@"AVAudioSessionCategoryRecord failed! error:%@", error);
-        }
-
-        [audioSession setPreferredIOBufferDuration:0.04 error:&error];
+        [[AVAudioSession sharedInstance] setPreferredIOBufferDuration:0.04 error:&error];
         if (error) NSLog(@"setPreferredIOBufferDuration failed! error:%@", error);
 
         [self _registerForBackgroundNotifications];
@@ -245,15 +236,104 @@ static OSStatus PlayCallback(
         gCallbackRefQueue = dispatch_queue_create("ConvAudioRefCallback", DISPATCH_QUEUE_CONCURRENT);
         gFadeOutQueue = dispatch_queue_create("AudioControllerFadeOutQueue", DISPATCH_QUEUE_CONCURRENT);
         
-        if (type == all_open || type == only_recorder) {
-            [self _initRecorder];
-        }
-        if (type == all_open || type == only_player) {
-            [self _initPlayer];
-        }
+      
     }
     return self;
 }
+
+
+/**
+ * 配置音频会话类别，支持外部设置
+ *
+ * 根据指定的 AudioControlType 类型配置 AVAudioSession 的类别和选项。
+ * 如果当前已经设置为相同类型或全部类型，则不进行重复设置。
+ * 根据类型初始化相应的播放器或录音器组件。
+ *
+ * @param type 音频控制类型，定义录音和播放的组合模式
+ * @param error 如果配置失败，返回错误信息
+ * @return 配置是否成功
+ */
+- (BOOL)configureAudioSessionForType:(AudioControlType)type error:(NSError **)error {
+    // 检查是否已经是全部类型或当前类型已经设置过，如果是则直接返回成功，避免重复设置
+    if (audioControlType == all_open || type == audioControlType) {
+        return YES;
+    }
+    
+    // 更新当前音频控制类型
+    audioControlType = type;
+    
+    // 获取 AVAudioSession 的共享实例，用于管理音频会话
+    AVAudioSession *audioSession = [AVAudioSession sharedInstance];
+    
+    // 默认设置音频会话类别为 PlayAndRecord，支持同时录音和播放
+    AVAudioSessionCategory category = AVAudioSessionCategoryPlayAndRecord;
+    
+    // 默认设置音频会话选项为允许蓝牙设备和其他常见选项
+    AVAudioSessionCategoryOptions options = AVAudioSessionCategoryOptionAllowBluetooth | AVAudioSessionCategoryOptionMixWithOthers;
+    
+    // 使用 switch 语句简化条件判断，根据类型设置类别和初始化组件
+    switch (type) {
+        case all_open:
+            // 全部开放：录音和播放，设置默认类别，并初始化播放器和录音器
+            options |= AVAudioSessionCategoryOptionDefaultToSpeaker;
+            if (!hasPlayer) {
+                [self _initPlayer];
+            }
+            if (!hasRecorder) {
+                [self _initRecorder];
+            }
+            break;
+        case only_player:
+            // 仅播放：设置播放类别，如果没有录音器，则使用 Playback 类别
+            if (!hasPlayer) {
+                [self _initPlayer];
+            }
+            if (!hasRecorder) {
+                category = AVAudioSessionCategoryPlayback;
+            } else{
+                audioControlType = all_open;
+            }
+            break;
+        case only_recorder:
+            // 仅录音：设置录音类别，如果没有播放器，则使用 Record 类别
+            if (!hasRecorder) {
+                [self _initRecorder];
+            }
+            if (!hasPlayer) {
+                category = AVAudioSessionCategoryRecord;
+            } else{
+                audioControlType = all_open;
+            }
+            break;
+        default:
+            // 默认情况：假设为全部开放，初始化播放器和录音器
+            options |= AVAudioSessionCategoryOptionDefaultToSpeaker;
+            if (!hasPlayer) {
+                [self _initPlayer];
+            }
+            if (!hasRecorder) {
+                [self _initRecorder];
+            }
+            break;
+    }
+    
+    // 调用通用配置方法设置音频会话类别和选项，并返回结果
+    return [self configureAudioSessionWithCategory:category options:options error:error];
+}
+
+// 新增方法：通用音频会话配置，支持外部调用
+- (BOOL)configureAudioSessionWithCategory:(AVAudioSessionCategory)category options:(AVAudioSessionCategoryOptions)options error:(NSError **)error {
+    AVAudioSession *audioSession = [AVAudioSession sharedInstance];
+    BOOL success = [audioSession setCategory:category withOptions:options error:error];
+    if (!success && error) {
+        NSLog(@"setCategory failed! category:%@, error:%@", category, *error);
+    } else {
+        NSLog(@"setCategory success! category:%@, options:%lu", category, (unsigned long)options);
+    }
+    return success;
+}
+
+
 
 -(void) _initRecorder {
     NSLog(@"audiorecorder: init");
@@ -352,6 +432,7 @@ static OSStatus PlayCallback(
         recorder_state = RECORDER_STATE_INIT;
         recorder_mute_flag = false;
     }
+    hasRecorder = true;
 }
 
 -(void) _initPlayer {
@@ -508,6 +589,7 @@ static OSStatus PlayCallback(
         player_state = PLAYER_STATE_INIT;
         is_paused_flag = false;
     }
+    hasPlayer = true;
 }
 
 -(void)dealloc {

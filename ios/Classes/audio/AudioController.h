@@ -9,9 +9,10 @@
 #endif
 
 enum AudioControlType {
-    all_open = 0,
+    all_close = 0,
     only_player = 1,
     only_recorder = 2,
+    all_open = 3,
 };
 typedef enum AudioControlType AudioControlType;
 
@@ -87,7 +88,10 @@ typedef enum AudioControlType AudioControlType;
 /**
  * 初始化AudioController，若only_player为true，则只初始化播放器
  */
--(id)init:(AudioControlType)type;
+-(id)init;
+
+// 新增方法：配置音频会话类别，支持外部设置
+- (BOOL)configureAudioSessionForType:(AudioControlType)type error:(NSError **)error;
 
 /**
  * 开始录音
